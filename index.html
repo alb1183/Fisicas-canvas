@@ -1,0 +1,730 @@
+<!DOCTYPE HTML>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html;charset=utf-8" >
+		<script src="jquery-1.4.2.min.js"></script>
+		<title>Motor fisico en canvas(HTML5)</title>
+	</head>
+  
+	<body style="background-color: #999;">
+		<div style='text-align:center'>
+			<div id='fps' style='text-align:right'>&nbsp;</div>
+		  
+			<canvas id="canvas" width="1200" height="800" style='border:1px solid black; position:relative; background-color: #EEE;'>
+				If you can read this, your browser doesn't support the canvas element. Try
+				<a href="http://www.google.com/chrome" target=_blank>Google Chrome</a>
+			</canvas>
+			<br>
+			<input type=button id='reiniciar' value='Reiniciar'>
+			<input type=button id='pause_fisica' value='Pausar'>
+			<input type=button id='start' value='Iniciar'>
+			<input type=button id='delete' value='Borrar'>
+			<input type=button id='add_cicle' value='Circulo'>
+			<input type=button id='add_quad' value='Cuadrado'>
+			<input type=button id='add_triangle' value='Triangulo'>
+
+			<div id="config_" style="display: none">
+				<br>
+			</div>
+			<br>
+			<a href="http://alb1183.es/archivos/motor-fisico-en-canvashtml5/" style="font-family: Helvetica; color: #333; font-size: 9px;"> Por alb1183 - 2013/14</a>
+		</div>
+		
+		<script type='text/javascript'>
+		
+		//////////////////////////////
+		// Variables de la simulacion
+
+		var timestep = 0.005;
+		// Absolute time at last timestep
+		var objetos = 0;
+		var t0 = 0;
+		var seleccionado = 0;
+		var pause = false;
+
+		var timer = null; // setInterval return handle.
+		var width = $('#canvas').width(); /// width of canvas 
+		var height = $('#canvas').height(); // height of canvas
+		var frame_counter = [0, 0]; // seconds, frames
+
+
+		///////////////////////////////
+		// Varibles de las fisicas :D
+		var gravity = 9.8;
+		var cte_mps_pps = 80;
+			$('#size_out').show();
+			$('#size_out').html("Tamaño W:" + (width / cte_mps_pps) + "m, H: " + (height / cte_mps_pps) + "m");
+
+		// Vectores de posicion, velocidad y aceleracion
+		var coords = new Array();
+		var last_coords = [0, 0];
+		var velocity = new Array();
+		var accel = [0, gravity * cte_mps_pps];
+		var colis_ult = new Array();
+		var mouse_pos = [0, 0]
+
+		// Restitucion
+		var bounce_factor = new Array();
+
+		// Objeto infop
+		var mass = new Array();
+		var forces = new Array();
+		var radius = new Array();
+		var color = new Array();
+		var tipo = new Array();
+		var colision = new Array();
+		var dinam = new Array();
+
+		// Fuerzas acting on the ball as array of:
+		// [x, y, time]  if time==false, the force is always present.
+		// time es 'time to live', en segundos.
+		//var forces = [
+		//  [0, gravity*mass, false],  
+		//];
+
+		/////////////
+		// User response related things
+		var drag = false;
+		var drag_coords = [0, 0];
+		var drag_obj = 0;
+		var throw_ = false;
+		var movi_ = true;
+		var data_ = true;
+		var config_ = true;
+		// throw/kick vector
+		var throw_coords = [0, 0];
+		var movi_coords = new Array();
+
+		// Crea los objeto
+		createobj(2, 20, 0.7, "#1CB7FF", 1, 1)
+		
+		//Inicia
+		t0 = new Date().getTime();
+		accel = [0, gravity * cte_mps_pps];
+		timer = setInterval(main, timestep*1000); 
+		  
+		function get_context()
+		{
+		  var example = $('#canvas')[0];
+		  return example.getContext('2d');
+		}
+
+		//Funcion crear objetos
+		function createobj(masa, radio, restitucion, colores, tipe, dinamic)
+		{ 
+			mass[objetos] = masa;
+			radius[objetos] = radio;
+			coords[objetos] = [350 + (objetos * 40) % 700, radius[objetos] + 1];
+			velocity[objetos] = [0, 0];
+			bounce_factor[objetos] = restitucion;
+			color[objetos] = colores;	
+			colis_ult[objetos] = [0, 0, 'Nada', 0, 0]
+			forces[objetos] = [accel[0]*masa, accel[1]*masa]
+			movi_coords[objetos] = [coords[objetos][0], coords[objetos][1]];
+			tipo[objetos] = tipe;
+			colision[objetos] = 0;
+			dinam[objetos] = dinamic;
+			objetos += 1;
+		}
+		function add_obj(tipe)
+		{
+		  createobj(Math.floor(Math.random()*11), Math.floor(Math.random()*40+5), Math.round(Math.random() * 100) / 100, "#" + Math.floor(Math.random()*16777215).toString(16), tipe, 1)
+		}
+		function deleteobj(opcion)
+		{ 
+			if(opcion == 1) {
+				i=0;
+				while (i<objetos)
+				{
+					seleccionado = 0;
+					mass[i] = false;
+					radius[i] = false;
+					coords[i] = false;
+					velocity[i] = false;
+					bounce_factor[i] = false;
+					color[i] = false;	
+					colis_ult[i] = false;
+					tipo[i] = false;
+					colision[objetos] = false;
+					dinam[objetos] = false;
+					i++;
+				}
+				objetos = 0;
+			}else if(opcion == 2){
+				mass.splice(seleccionado, 1);
+				radius.splice(seleccionado, 1);;
+				coords.splice(seleccionado, 1);
+				velocity.splice(seleccionado, 1);
+				bounce_factor.splice(seleccionado, 1);
+				color.splice(seleccionado, 1);
+				colis_ult.splice(seleccionado, 1);
+				tipo.splice(seleccionado, 1);
+				colision.splice(seleccionado, 1);
+				dinam.splice(seleccionado, 1);
+				objetos -= 1;
+				if(seleccionado > 0){
+					seleccionado -= 1;
+				}else{
+					seleccionado = 0;
+				}
+				seleccionado -= 1;
+			}else{
+				mass[objetos] = false;
+				radius[objetos] = false;
+				coords[objetos] = false;
+				velocity[objetos] = false;
+				bounce_factor[objetos] = false;
+				color[objetos] = false;	
+				colis_ult[objetos] = false;
+				tipo[objetos] = false;
+				colision[objetos] = false;
+				if(objetos == seleccionado && seleccionado > 0){
+					seleccionado -= 1;
+				}
+				objetos -= 1;
+			}
+		}
+
+		function distancia(i,j, radio)
+		{
+			var vector_distancia = [coords[i][0] - coords[j][0], coords[i][1] - coords[j][1]];
+			if(radio != 1) {
+				var distancia = Math.sqrt((Math.pow(vector_distancia[0],2))+(Math.pow(vector_distancia[1],2)))
+			}else{
+				var distancia = Math.sqrt((Math.pow(vector_distancia[0],2))+(Math.pow(vector_distancia[1],2))) - (radius[i] + radius[j])
+			}
+			return distancia;
+		}
+		function colliding(i, j)
+		 {
+		   var status = false;
+		   var rec1Top = coords[i][1] - radius[i];
+		   var rec1Bottom = coords[i][1] + radius[i];
+		   var rec1Left = coords[i][0] - radius[i];
+		   var rec1Right = coords[i][0] + radius[i];
+		 
+		   var rec2Top = coords[j][1] - radius[j];
+		   var rec2Bottom = coords[j][1] + radius[j];
+		   var rec2Left = coords[j][0] - radius[j];
+		   var rec2Right = coords[j][0] + radius[j];
+		 
+		  if(!(rec1Bottom < rec2Top ||
+		   rec1Top > rec2Bottom ||
+		   rec1Left > rec2Right ||
+		   rec1Right < rec2Left))
+		 
+				 status = true;
+		 
+		   return status;
+		 }
+		// Dibujar la bola.
+		function draw()
+		{
+		  var context = get_context();
+		  // limpiar el canvas
+		  context.clearRect(0, 0, width, height);
+		  context.save();
+		  
+			if(data_){
+				context.font      = "normal 12px Tahoma";
+				context.fillStyle = "#000000";
+				
+				context.fillText("Raton X: " + mouse_pos[0] + ", Y: " + mouse_pos[1], width - 200, 15 * 1);
+				context.fillText("Gravedad: " + gravity, width - 200, 15 * 2);
+				context.fillText("Objetos: " + objetos, width - 200, 15 * 3);
+				context.fillText("cte_mps_pps: " + cte_mps_pps, width - 200, 15 * 4);
+				context.fillText("Aceleracion X: " + Math.round(accel[0] * 100) / 100 + ", Y: " + Math.round(accel[1] * 100) / 100 + " p/s^2", width - 200, 15 * 5);
+				context.fillText("Aceleracion(real) X: " + Math.round(accel[0] / cte_mps_pps * 100) / 100 + ", Y: " + Math.round(accel[1] / cte_mps_pps * 100) / 100 + " m/s^2", width - 200, 15 * 6);
+				
+				context.fillText("ID: " + seleccionado, 5, 15 * 1);
+				context.fillText("Masa: " + mass[seleccionado], 5, 15 * 2);
+				context.fillText("Radio: " + radius[seleccionado], 5, 15 * 3);
+				context.fillText("Restitucion: " + bounce_factor[seleccionado], 5, 15 * 4);
+				context.fillText("Posicion X: " + Math.round(coords[seleccionado][0] * 100) / 100 + ", Y: " + Math.round(coords[seleccionado][1] * 100) / 100, 5, 15 * 5);
+				context.fillText("Fuerza X: " + Math.round(forces[seleccionado][0] * 100) / 100 + ", Y: " + Math.round(forces[seleccionado][1] * 100) / 100 + " pN", 5, 15 * 6);
+				context.fillText("Fuerza(real) X: " + Math.round(forces[seleccionado][0] / cte_mps_pps * 100) / 100 + ", Y: " + Math.round(forces[seleccionado][1] / cte_mps_pps * 100) / 100 + " N", 5, 15 * 7);
+				context.fillText("Velocidad X: " + Math.round(velocity[seleccionado][0] * 100) / 100 + ", Y: " + Math.round(velocity[seleccionado][1] * 100) / 100 + " p/s", 5, 15 * 8);
+				context.fillText("Velocidad(real) X: " + Math.round(velocity[seleccionado][0] / cte_mps_pps * 100) / 100 + ", Y: " + Math.round(velocity[seleccionado][1] / cte_mps_pps * 100) / 100 + " m/s", 5, 15 * 9);
+				context.fillText("Energia cinetica X: " + Math.round((0.5 * mass[seleccionado] * Math.pow(velocity[seleccionado][0] / cte_mps_pps,2)) * 100) / 100 + ", Y: " + Math.round(velocity[seleccionado][1] / cte_mps_pps * 100) / 100 + " ", 5, 15 * 10);
+				context.fillText("Ultima colision X: " + Math.round(colis_ult[seleccionado][0] * 100) / 100 + ", Y: " + Math.round(colis_ult[seleccionado][1] * 100) / 100 + ", L: " + colis_ult[seleccionado][2], 5, 15 * 11);
+				context.fillText("Ult.colis.vel p/s->V(X): " + Math.round(colis_ult[seleccionado][3] * 100) / 100 + " V(Y): " + Math.round(colis_ult[seleccionado][4] * 100) / 100 + "| m/s->V(X): " + Math.round(colis_ult[seleccionado][3] / cte_mps_pps * 100) / 100 + " V(Y): " + Math.round(colis_ult[seleccionado][4] / cte_mps_pps * 100) / 100, 5, 15 * 12);
+			}
+		  
+			i=0;
+			while (i<objetos)
+			{
+				  context.fillStyle = color[i];
+				  // dibujar objetos
+				  context.beginPath();
+				  if(tipo[i] == 1) {
+					context.arc(coords[i][0], coords[i][1], radius[i], 0, Math.PI*2, true); 
+					context.fill();
+					
+					if(colision[i] == 1) {
+						context.fillStyle = "rgba(255, 158, 158, 0.5)";
+					}else{
+						context.fillStyle = "rgba(158, 198, 255, 0.5)";
+					}
+					context.rect(coords[i][0]-radius[i], coords[i][1]-radius[i], radius[i]*2, radius[i]*2);
+				  }else if(tipo[i] == 2){	
+					context.rect(coords[i][0]-radius[i], coords[i][1]-radius[i], radius[i]*2, radius[i]*2);
+				  }else if(tipo[i] == 3) {
+					context.moveTo(coords[i][0],coords[i][1]-radius[i]);
+					context.lineTo(coords[i][0]-(radius[i]*0.866),coords[i][1]+(radius[i]*0.5));
+					context.lineTo(coords[i][0]+(radius[i]*0.866),coords[i][1]+(radius[i]*0.5));
+					context.fill();
+					
+					if(colision[i] == 1) {
+						context.fillStyle = "rgba(255, 158, 158, 0.5)";
+					}else{
+						context.fillStyle = "rgba(158, 198, 255, 0.5)";
+					}		
+					context.rect(coords[i][0]-radius[i], coords[i][1]-radius[i], radius[i]*2, radius[i]*2);
+				  }
+				  context.closePath();
+				  context.fill();
+				  context.restore();
+				  
+				  // dibujar los vectores throw/force
+				  if (throw_ && dinam[i] == 1)
+				  {
+					if(seleccionado == i) {
+						context.beginPath();
+						context.moveTo(coords[i][0], coords[i][1]);
+						context.lineTo(throw_coords[0], throw_coords[1]); 
+						context.strokeStyle = '#9A04DB';
+						context.stroke();
+					}
+				  }
+				  
+				  // dibujar los vectores de movimiento
+				  if (movi_ && dinam[i] == 1)
+				  {
+					context.beginPath();
+					context.moveTo(coords[i][0], coords[i][1]);
+					context.lineTo(coords[i][0], height);
+					context.strokeStyle = '#000';
+					context.stroke();
+						
+					if(drag == false) {
+						context.beginPath();
+						context.moveTo(coords[i][0], coords[i][1]);
+						context.lineTo(movi_coords[i][0], movi_coords[i][1]);
+						context.strokeStyle = '#D3001F';
+						context.stroke();
+					}
+				  }
+			i++;
+			}
+		}
+
+
+
+		// Moves the ball for the given timestep with the overall force given as 
+		// resolved_force.
+		// This is a differential equation which we evaluate using Velocity-Verlet 
+		// integration,
+		// http://en.wikipedia.org/wiki/Verlet_integration#Velocity_Verlet
+		// Ni idea (?)
+		//Esta hecho una mierda >:(
+		function move(dt)
+		{
+			i=0;
+			while (i<objetos)
+			{
+			if(dinam[i] == 1) {
+				forces[i] = [accel[0]*mass[i], accel[1]*mass[i]]
+				
+				 /*
+				  velocity[i][0] = (Math.abs(velocity[i][0]) < 3) ? 0 : velocity[i][0];
+				  velocity[i][1] = (Math.abs(velocity[i][1]) < 3) ? 0 : velocity[i][1];
+				 */
+				
+				  velocity[i] = [	velocity[i][0] + (accel[0]*dt),
+								velocity[i][1] + (accel[1]*dt)
+							 ];
+
+				  coords[i] = [	coords[i][0] + velocity[i][0]*dt + 0.5*accel[0]*dt*dt,
+								coords[i][1] + velocity[i][1]*dt + 0.5*accel[1]*dt*dt
+							];
+					
+				  if (movi_)
+				  {
+					movi_coords[i] = [	coords[i][0] - (velocity[i][0] / 10),
+										coords[i][1] - (velocity[i][1] / 10)
+									];
+				  }
+			  }
+			i++;
+			}
+		}
+
+		// very simple collision detection and response for rebounding off the walls
+		// and applying some damping according to bounce_factor
+		function do_collision_detection()
+		{
+
+			i=0;
+			while (i<objetos)
+			{
+				j=0;
+				while (j<objetos)
+				{
+					if(colliding(i,j) && i != j) {
+						if(tipo[i] == tipo[j] && tipo[i] == 1) {
+							if(distancia(i,j, 1) < 0) {
+								if(dinam[i] == 1) {
+									if(coords[i][0] > coords[j][0]) {
+										coords[i][0] += 1;
+									}else if(coords[i][0] < coords[j][0]) {
+										coords[i][0] -= 1;
+									}
+									if(coords[i][1] < coords[j][1]) {
+										coords[i][1] -= 1;
+									}else if(coords[i][1] > coords[j][1]){
+										coords[i][1] += 1;
+									}
+									velocity[i][0] *= -bounce_factor[i];
+									velocity[i][1] *= -bounce_factor[i];
+								}
+								if(dinam[j] == 1) {
+									velocity[j][0] += velocity[i][0] * (1 - bounce_factor[i]);
+									velocity[j][1] += velocity[i][1] * (1 - bounce_factor[i]);
+								}
+							}
+						}
+						if(tipo[i] == tipo[j] && tipo[i] == 2) {
+							if(colliding(i,j)) {
+								if(dinam[i] == 1) {
+									if(coords[i][0] > coords[j][0]) {
+										coords[i][0] += 1;
+									}else if(coords[i][0] < coords[j][0]) {
+										coords[i][0] -= 1;
+									}
+									if(coords[i][1] < coords[j][1]) {
+										coords[i][1] -= 1;
+									}else if(coords[i][1] > coords[j][1]){
+										coords[i][1] += 1;
+									}
+									
+									velocity[i][0] *= -bounce_factor[i];
+									velocity[i][1] *= -bounce_factor[i];
+								}
+								
+								if(dinam[j] == 1) {
+									velocity[j][0] += velocity[i][0] * (1 - bounce_factor[i]);
+									velocity[j][1] += velocity[i][1] * (1 - bounce_factor[i]);
+								}
+							}
+						}
+						//colision[i] = 1;
+						colision[j] = 1;
+					}else if(i != j){
+						colision[i] = 0;
+						//colision[j] = 0;
+					}
+				j++;
+				} 
+				
+			  // Izquierda
+			  if (coords[i][0] < radius[i] && tipo[i] != 3 || tipo[i] == 3 && coords[i][0] < 0.866)
+			  {
+				if(tipo[i] == 3) {
+					coords[i][0] = radius[i] * 0.866;
+				}else{
+					coords[i][0] = radius[i] + 1;
+				}
+				colis_ult[i] = [coords[i][0], coords[i][1], 'Izquierda', velocity[i][0], velocity[i][1]]
+				velocity[i][0] *= -bounce_factor[i];
+				velocity[i][1] *= bounce_factor[i];
+			  }
+			  // Derecha
+			  if (coords[i][0] > width-radius[i] && tipo[i] != 3 || tipo[i] == 3 && coords[i][0] > width-(radius[i] * 0.866))
+			  {
+				if(tipo[i] == 3) {
+					coords[i][0] = width-(radius[i] * 0.866);
+				}else{
+					coords[i][0] = width-radius[i] - 1;
+				}
+				colis_ult[i] = [coords[i][0], coords[i][1], 'Derecha', velocity[i][0], velocity[i][1]]
+				velocity[i][0] *= -bounce_factor[i];
+				velocity[i][1] *= bounce_factor[i];
+			  }
+			  // Arriba
+			  if (coords[i][1] < radius[i])
+			  {    
+				if(tipo[i] == 3) {
+					coords[i][1] = radius[i];
+				}else{
+					coords[i][1] = radius[i];
+				}
+				colis_ult[i] = [coords[i][0], coords[i][1], 'Arriba', velocity[i][0], velocity[i][1]]
+				velocity[i][0] *= bounce_factor[i];
+				velocity[i][1] *= -bounce_factor[i];
+			  }
+			  // Abajo
+			  if (coords[i][1] > height-radius[i] && tipo[i] != 3 || tipo[i] == 3 && coords[i][1] > height-(radius[i] / 2))
+			  {
+				if(tipo[i] == 3) {
+					coords[i][1] = height-(radius[i] / 2);
+				}else{
+					coords[i][1] = height-radius[i];
+				}
+				if(velocity[i][0] * bounce_factor[i] < 25 && velocity[i][0] * bounce_factor[i] > -25 ) {
+					velocity[i][0] = 0;
+				}else{
+					velocity[i][0] *= bounce_factor[i];
+				}
+				if(velocity[i][1] * -bounce_factor[i] < 25 && velocity[i][1] * -bounce_factor[i] > -25 ) {
+					velocity[i][1] = 0;
+				}else{
+					velocity[i][1] *= -bounce_factor[i];
+				}
+				colis_ult[i] = [coords[i][0], coords[i][1], 'Abajo', velocity[i][0], velocity[i][1]]
+			  } 
+			i++;
+			} 
+		}
+
+
+		// evaluates the forces array, removes any 'dead' forces, and
+		// returns the resolved force for this timestep.
+
+		// Main loop.
+		function main()
+		{
+		  // calculate time elpased since last run
+		  var t1 = new Date().getTime();
+		  var dt = t1-t0;  
+		  dt /= 1000.0;
+		  if (dt < timestep)
+			dt = timestep;
+		  
+		  frame_counter[0] += dt;
+		  frame_counter[1]++;
+		  
+		  if (frame_counter[0] > 1.0)
+		  {
+			frame_counter[0] = 0;
+			$('#fps').html(frame_counter[1] + " fps");
+			frame_counter[1] = 0;
+		  }
+		  
+		  t0 = t1;
+
+			if(!pause) {
+			  move(dt);
+			  do_collision_detection();
+			  last_coords[0] = coords[0][0];
+			  last_coords[1] = coords[0][1];
+			}
+		  		  
+		  draw();
+		  
+		}
+
+		// initiates the main loop.
+		function go()
+		{
+
+		 /*
+		  t0 = new Date().getTime();
+		  accel = [0, gravity * cte_mps_pps];
+		  timer = setInterval(main, timestep*1000); */
+		  if(pause) {
+			pause = false;
+		  }
+		}
+
+		function stop()
+		{
+		  /*
+		  clearInterval(timer);
+		  timer = null;
+		  accel = [0, 0];
+		  */
+		  if(!pause) {
+			pause = true;
+		  }
+		}
+
+
+		////////////////////////////
+		/// UI handlers follow.
+
+
+		// responds to mouse dragging
+		function startdragging(e)
+		{
+		  // mouse input uses layerX in Firefox/chrome and offsetX in Opera.
+		  var x = e.layerX !== undefined? e.layerX : e.offsetX;
+		  var y = e.layerY !== undefined? e.layerY : e.offsetY;
+		  
+		  if (e.which == 1)
+		  {
+			i=0;
+			while (i<objetos)
+			{
+				if (x >= coords[i][0]-radius[i] && x <= coords[i][0] + radius[i]
+				  &&
+				  y >= coords[i][1]-radius[i] && y <= coords[i][1] + radius[i]
+				  )
+				{
+				  drag = true;
+				  drag_obj = i;
+				  drag_coords = [x, y];
+				}	
+			i++;
+			}
+
+		  } 
+		  else if (e.which == 2)
+		  {
+			i=0;
+			while (i<objetos)
+			{
+				if (x >= coords[i][0]-radius[i] && x <= coords[i][0] + radius[i]
+				  &&
+				  y >= coords[i][1]-radius[i] && y <= coords[i][1] + radius[i]
+				  )
+				{
+				  seleccionado = i;
+				}	
+			i++;
+			}
+			
+		  }
+		  else if (e.which == 3)
+		  {
+			throw_ = true;
+			throw_coords = [x, y];
+		  }
+		  
+		  if (drag || throw_)
+			stop();
+		  
+		  return false;
+		}
+
+		$('#canvas').mousedown(startdragging);
+		$('#canvas').click(function(e) { return false });
+
+		// Disable rightclick so that we can use the right button as input on the 
+		// canvas
+		$('#canvas').bind("contextmenu", function(e) { return false });
+
+		// called every time the mouse is moved, deals with dragging of the ball
+		// and throw vectors
+		$('#canvas').mousemove( function (e) {
+		  
+		  var x = e.layerX !== undefined? e.layerX : e.offsetX;
+		  var y = e.layerY !== undefined? e.layerY : e.offsetY;
+		   mouse_pos = [x, y];
+		   
+		  if (!drag && !throw_)
+			return;
+		  
+		  if (throw_)
+			throw_coords = [x, y];
+		  
+		  else if (drag)
+		  {
+			i=0;
+			while (i<objetos)
+			{
+			
+				if(drag_obj == i) {
+					coords[i] = [x, y];
+					
+					var dx, dy;
+					dx = x - drag_coords[0];
+					dy = y - drag_coords[1];
+					var dt = timestep;
+					// scale this down a bit or it seems like the user has super-strength
+					velocity[i] = [dx/dt*0.1, dy/dt * 0.1];
+					drag_coords = [x, y];
+				}
+				i++;
+			}
+		  }
+		  return false;  
+		});
+
+		// Releases the drag event.
+		$('#canvas').mouseup( function (e) {
+		  
+		  if (!drag && !throw_)
+			return;
+		  
+		  if (throw_)
+		  {
+			var x = e.layerX !== undefined? e.layerX : e.offsetX;
+			var y = e.layerY !== undefined? e.layerY : e.offsetY;
+		  
+			// give it a bit more oomph.
+			var scale = 10;
+			var throw_vector_x = (coords[seleccionado][0]-x)*scale;
+			var throw_vector_y = (coords[seleccionado][1]-y)*scale;
+			velocity[seleccionado] = [throw_vector_x, throw_vector_y];
+			
+			throw_ = false;
+			drag = false;
+		  }
+		  else if (drag)
+			drag = false;
+		  
+		  go();
+		  
+		  return false;                      
+		});
+		$('body').keydown( function (e) {
+			  if (e.keyCode == 37) { 
+				velocity[seleccionado] = [velocity[seleccionado][0] - 100 + velocity[seleccionado][0] / 100, velocity[seleccionado][1]];
+			   return false;
+			   }
+			  if (e.keyCode == 38) { 
+				velocity[seleccionado] = [velocity[seleccionado][0], velocity[seleccionado][1] - 100 + velocity[seleccionado][1] / 100];
+			   return false;
+			   }
+			  if (e.keyCode == 39) { 
+				velocity[seleccionado] = [velocity[seleccionado][0] + 100 - velocity[seleccionado][0] / 100, velocity[seleccionado][1]];
+			   return false;
+			   }
+			  if (e.keyCode == 40) { 
+				velocity[seleccionado] = [velocity[seleccionado][0], velocity[seleccionado][1] + 100 - velocity[seleccionado][1] / 100];
+			   return false;
+			   }
+		});
+		function reiniciar()
+		{ 
+			deleteobj(1);
+			add_obj(1);
+		}
+		function pause_fisica()
+		{
+			go()
+			pause = true;
+		}
+
+		$('#reiniciar').click(reiniciar);
+		$('#pause_fisica').click(pause_fisica);
+		$('#start').click(go);
+		$('#add_cicle').click(function () {
+			add_obj(1);
+		});
+		$('#add_quad').click(function () {
+			add_obj(2);
+		});
+		$('#add_triangle').click(function () {
+			add_obj(3);
+		});
+		$('#delete').click(function () {
+			deleteobj(2);
+		});
+
+		draw();
+
+		</script>
+
+	</body>
+</html>
